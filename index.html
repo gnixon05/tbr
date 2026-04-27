@@ -113,6 +113,7 @@
   // ---------- Pickups & boosts ----------
   const gems = [];
   const stripes = [];
+  const obstacles = []; // pillars hanging from top or rising from bottom
 
   function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -133,6 +134,35 @@
   // Speed stripes: vertical green ribbons spanning the corridor that boost on touch.
   for (let x = 520; x < FINISH_X - 300; x += rand(520, 820)) {
     stripes.push({ x, w: 22, used: false });
+  }
+
+  // Obstacles: pillars from top or bottom of the corridor. Length scales with
+  // corridor half-height so the gap is always passable. Skip placements near
+  // start, finish, or any speed stripe.
+  function nearStripe(x) {
+    return stripes.some(s => Math.abs((s.x + s.w / 2) - x) < 110);
+  }
+  for (let x = 600; x < FINISH_X - 400; x += rand(280, 460)) {
+    if (nearStripe(x)) continue;
+    const hh = halfH(x);
+    const len = rand(0.35, 0.7) * (2 * hh);
+    const w = rand(22, 36);
+    const side = Math.random() < 0.5 ? "top" : "bot";
+    obstacles.push({ x, w, len, side });
+  }
+
+  // Remove gems that ended up inside an obstacle rectangle.
+  for (let i = gems.length - 1; i >= 0; i--) {
+    const g = gems[i];
+    for (const o of obstacles) {
+      if (g.x < o.x - 4 || g.x > o.x + o.w + 4) continue;
+      const midX = o.x + o.w / 2;
+      const rectY = o.side === "top" ? topY(midX) : (bottomY(midX) - o.len);
+      if (g.y >= rectY - 4 && g.y <= rectY + o.len + 4) {
+        gems.splice(i, 1);
+        break;
+      }
+    }
   }
 
   const totalGems = gems.length;
@@ -204,6 +234,17 @@
         color, size: 2 + Math.random() * 2,
       });
     }
+  }
+
+  function applyHit(sparkX, sparkY) {
+    if (player.invuln > 0) return;
+    player.vx = Math.max(HIT_SLOW_FLOOR, player.vx * HIT_SLOW_MULT);
+    player.boost = 0;
+    player.invuln = HIT_INVULN;
+    player.hitFlash = HIT_FLASH;
+    player.hits++;
+    shake = HIT_SHAKE;
+    spawnParticles(sparkX, sparkY, "#ffd166", 14, 220);
   }
 
   function restart() {
@@ -285,15 +326,36 @@
       if (player.vy > 0) player.vy = 0;
       hitWall = "bot";
     }
-    if (hitWall && player.invuln <= 0) {
-      player.vx = Math.max(HIT_SLOW_FLOOR, player.vx * HIT_SLOW_MULT);
-      player.boost = 0;
-      player.invuln = HIT_INVULN;
-      player.hitFlash = HIT_FLASH;
-      player.hits++;
-      shake = HIT_SHAKE;
+    if (hitWall) {
       const sparkY = hitWall === "top" ? top : bot;
-      spawnParticles(player.x, sparkY, "#ffd166", 14, 220);
+      applyHit(player.x, sparkY);
+    }
+
+    // Obstacles inside the corridor (circle-vs-rect)
+    for (const o of obstacles) {
+      if (o.x + o.w < player.x - player.r) continue;
+      if (o.x > player.x + player.r) break;
+      const midX = o.x + o.w / 2;
+      const rectY = o.side === "top" ? topY(midX) : (bottomY(midX) - o.len);
+      const rectH = o.len;
+      const cx = Math.max(o.x, Math.min(player.x, o.x + o.w));
+      const cy = Math.max(rectY, Math.min(player.y, rectY + rectH));
+      const dx = player.x - cx;
+      const dy = player.y - cy;
+      if (dx * dx + dy * dy < player.r * player.r) {
+        const d = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+        const nx = dx / d, ny = dy / d;
+        const overlap = player.r - d + 0.5;
+        player.x += nx * overlap;
+        player.y += ny * overlap;
+        // Kill velocity component into the obstacle
+        const vDot = player.vx * nx + player.vy * ny;
+        if (vDot < 0) {
+          player.vx -= vDot * nx;
+          player.vy -= vDot * ny;
+        }
+        applyHit(cx, cy);
+      }
     }
 
     // Decay timers
@@ -432,6 +494,29 @@
     ctx.beginPath();
     samples.forEach((s, i) => i ? ctx.lineTo(s.sx, s.b) : ctx.moveTo(s.sx, s.b));
     ctx.stroke();
+  }
+
+  function drawObstacles() {
+    for (const o of obstacles) {
+      const sx = o.x - camX;
+      if (sx + o.w < -10 || sx > W + 10) continue;
+      const midX = o.x + o.w / 2;
+      const y = o.side === "top" ? topY(midX) : (bottomY(midX) - o.len);
+      // Body matches wall palette
+      const grad = ctx.createLinearGradient(sx, y, sx, y + o.len);
+      grad.addColorStop(0, "#3b2a55");
+      grad.addColorStop(1, "#1a1330");
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx, y, o.w, o.len);
+      // Highlight along the inside-facing edge
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      if (o.side === "top") ctx.fillRect(sx, y + o.len - 3, o.w, 3);
+      else ctx.fillRect(sx, y, o.w, 3);
+      // Side stripes for readability
+      ctx.fillStyle = "rgba(255,209,102,0.5)";
+      ctx.fillRect(sx, y, 2, o.len);
+      ctx.fillRect(sx + o.w - 2, y, 2, o.len);
+    }
   }
 
   function drawStripes() {
@@ -597,6 +682,7 @@
     }
     drawParallax();
     drawCorridor();
+    drawObstacles();
     drawStripes();
     drawGems();
     drawFinish();
