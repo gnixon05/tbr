@@ -92,7 +92,7 @@
 
   // ---------- Best time (localStorage) ----------
   // Key includes the level seed so changing the layout invalidates old times.
-  const BEST_KEY = `topbot.best.v1.${LEVEL_SEED}`;
+  const BEST_KEY = `topbot.best.v2.${LEVEL_SEED}`;
   function loadBest() {
     try {
       const v = parseFloat(localStorage.getItem(BEST_KEY));
@@ -137,21 +137,48 @@
   const LEVEL_LENGTH = 6400;
   const FINISH_X = LEVEL_LENGTH - 120;
 
-  // Corridor centerline and half-height as functions of worldX.
-  // Start and end are flatter/wider for fair launches and landings.
-  function easeEnds(x) {
-    const startEase = Math.min(1, x / 500);
-    const endEase = Math.min(1, (LEVEL_LENGTH - x) / 500);
-    return Math.min(startEase, endEase); // 0 at edges, 1 in the middle
+  // Corridor "sections": each anchor sets the local feel of the passageway.
+  // Parameters lerp between adjacent anchors so transitions are smooth.
+  //   hh:    corridor half-height (smaller = tighter)
+  //   swell: amplitude of the centerline drift (bigger = more zigzag)
+  //   freq:  frequency of that drift
+  const SECTIONS = [
+    { x: 0,    hh: 170, swell:   0, freq: 0.0030 }, // wide intro
+    { x: 700,  hh: 140, swell:  60, freq: 0.0040 }, // gentle wave
+    { x: 1700, hh: 105, swell:  35, freq: 0.0022 }, // tight, almost straight
+    { x: 2700, hh: 125, swell: 110, freq: 0.0055 }, // big zigzag
+    { x: 3800, hh: 100, swell:  60, freq: 0.0080 }, // tight + busy
+    { x: 4900, hh: 145, swell:  90, freq: 0.0040 }, // wider zigzag
+    { x: 5900, hh: 170, swell:   0, freq: 0.0030 }, // wide outro to flag
+    { x: LEVEL_LENGTH, hh: 170, swell: 0, freq: 0.0030 },
+  ];
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function sectionAt(x) {
+    let lo = 0, hi = SECTIONS.length - 1;
+    if (x <= SECTIONS[0].x) return SECTIONS[0];
+    if (x >= SECTIONS[hi].x) return SECTIONS[hi];
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (SECTIONS[mid].x <= x) lo = mid; else hi = mid;
+    }
+    const a = SECTIONS[lo], b = SECTIONS[hi];
+    const t = (x - a.x) / (b.x - a.x);
+    return {
+      hh:    lerp(a.hh,    b.hh,    t),
+      swell: lerp(a.swell, b.swell, t),
+      freq:  lerp(a.freq,  b.freq,  t),
+    };
   }
+
   function centerY(x) {
-    const e = easeEnds(x);
-    return H * 0.5 + (Math.sin(x * 0.0032) * 80 + Math.sin(x * 0.0095) * 28) * e;
+    const s = sectionAt(x);
+    return H * 0.5 + Math.sin(x * s.freq) * s.swell + Math.sin(x * 0.011) * 8;
   }
   function halfH(x) {
-    const e = easeEnds(x);
-    // 170px wide near edges, ~110px in the middle, with mild oscillation.
-    return 170 - 60 * e + Math.sin(x * 0.0061) * 14 * e;
+    const s = sectionAt(x);
+    return s.hh + Math.sin(x * 0.0061) * 8;
   }
   function topY(x)    { return centerY(x) - halfH(x); }
   function bottomY(x) { return centerY(x) + halfH(x); }
@@ -636,6 +663,14 @@
     const sx = FINISH_X - camX;
     if (sx < -40 || sx > W + 40) return;
     const t = topY(FINISH_X), b = bottomY(FINISH_X);
+    // Soft glow column
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.005);
+    const glow = ctx.createRadialGradient(sx, (t + b) / 2, 4, sx, (t + b) / 2, 90);
+    glow.addColorStop(0, `rgba(255,209,102,${0.35 + 0.25 * pulse})`);
+    glow.addColorStop(1, "rgba(255,209,102,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(sx - 90, t - 10, 180, b - t + 20);
+    // Pole + flag
     ctx.fillStyle = "#cfd8ff";
     ctx.fillRect(sx - 2, t, 4, b - t);
     const fw = 56, fh = 36;
