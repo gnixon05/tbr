@@ -56,6 +56,7 @@
 
 <div id="hud">
   <div class="pill" id="hudTime">00.00s</div>
+  <div class="pill" id="hudBest">Best —</div>
   <div class="pill" id="hudGems">Gems 0 / 0</div>
   <div class="pill" id="hudDist">0 m</div>
 </div>
@@ -69,7 +70,10 @@
     <b style="color:#FF5577">red gems</b> for extra zip. Reach the checkered flag!
   </p>
   <button id="startBtn">Start Level 1</button>
-  <p style="opacity:.6;font-size:12px;margin-top:12px;">A 1-level remake inspired by Top Bot (2013).</p>
+  <p style="opacity:.6;font-size:12px;margin-top:12px;">
+    A 1-level remake inspired by Top Bot (2013).
+    <br/><a href="#" id="resetBestLink" style="color:#ffd166;text-decoration:underline;">Reset best time</a>
+  </p>
 </div>
 
 <script>
@@ -81,11 +85,53 @@
   const overlay = document.getElementById("overlay");
   const startBtn = document.getElementById("startBtn");
   const hudTime = document.getElementById("hudTime");
+  const hudBest = document.getElementById("hudBest");
   const hudGems = document.getElementById("hudGems");
   const hudDist = document.getElementById("hudDist");
+  const resetBestLink = document.getElementById("resetBestLink");
+
+  // ---------- Best time (localStorage) ----------
+  // Key includes the level seed so changing the layout invalidates old times.
+  const BEST_KEY = `topbot.best.v1.${LEVEL_SEED}`;
+  function loadBest() {
+    try {
+      const v = parseFloat(localStorage.getItem(BEST_KEY));
+      return Number.isFinite(v) ? v : null;
+    } catch (e) { return null; }
+  }
+  function saveBest(t) {
+    try { localStorage.setItem(BEST_KEY, String(t)); } catch (e) { /* ignore */ }
+  }
+  let bestTime = loadBest();
+  function fmtTime(t) { return t == null ? "—" : t.toFixed(2) + "s"; }
+  function refreshBestHud() { hudBest.textContent = "Best " + fmtTime(bestTime); }
+
+  resetBestLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    try { localStorage.removeItem(BEST_KEY); } catch (err) { /* ignore */ }
+    bestTime = null;
+    refreshBestHud();
+    resetBestLink.textContent = "Best time cleared";
+    setTimeout(() => { resetBestLink.textContent = "Reset best time"; }, 1500);
+  });
 
   const W = canvas.width;
   const H = canvas.height;
+
+  // ---------- Deterministic level RNG ----------
+  // Level layout must be identical every load so best times are comparable.
+  // mulberry32-style PRNG seeded with a fixed value for level generation only.
+  function makeRng(seed) {
+    return function () {
+      seed |= 0;
+      seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const LEVEL_SEED = 0xC0FFEE;
+  const lr = makeRng(LEVEL_SEED);
 
   // ---------- Level: corridor ----------
   const LEVEL_LENGTH = 6400;
@@ -115,19 +161,19 @@
   const stripes = [];
   const obstacles = []; // pillars hanging from top or rising from bottom
 
-  function rand(min, max) { return min + Math.random() * (max - min); }
+  function rand(min, max) { return min + lr() * (max - min); }
 
   // Gem clusters: place inside the corridor, varying vertical position.
   for (let x = 320; x < FINISH_X - 200; x += rand(180, 320)) {
     const cy = centerY(x);
     const hh = halfH(x);
-    const sign = Math.random() < 0.5 ? -1 : 1;
+    const sign = lr() < 0.5 ? -1 : 1;
     const baseG = cy + sign * rand(0, hh - 28);
-    const count = 3 + (Math.random() < 0.4 ? 2 : 0);
+    const count = 3 + (lr() < 0.4 ? 2 : 0);
     for (let i = 0; i < count; i++) {
       const gx = x + i * 26;
       const gy = baseG + Math.sin(i * 0.6) * 6;
-      gems.push({ x: gx, y: gy, r: 8, taken: false, spin: Math.random() * Math.PI });
+      gems.push({ x: gx, y: gy, r: 8, taken: false, spin: lr() * Math.PI });
     }
   }
 
@@ -147,7 +193,7 @@
     const hh = halfH(x);
     const len = rand(0.35, 0.7) * (2 * hh);
     const w = rand(22, 36);
-    const side = Math.random() < 0.5 ? "top" : "bot";
+    const side = lr() < 0.5 ? "top" : "bot";
     obstacles.push({ x, w, len, side });
   }
 
@@ -410,8 +456,18 @@
       player.finished = true;
       const star = player.gemsTaken === totalGems ? " ★★★" :
                    (player.gemsTaken > totalGems * 0.6 ? " ★★" : " ★");
+      const isRecord = bestTime == null || elapsed < bestTime;
+      const previous = bestTime;
+      if (isRecord) {
+        bestTime = elapsed;
+        saveBest(bestTime);
+        refreshBestHud();
+      }
+      const recordLine = isRecord
+        ? `<div style="color:#7CFC9A;font-weight:800;margin-top:6px;">🏆 New best time!${previous != null ? ` (was ${fmtTime(previous)})` : ""}</div>`
+        : `<div style="opacity:.85;margin-top:6px;">Best: <b>${fmtTime(bestTime)}</b></div>`;
       endGame("Level Cleared!" + star,
-        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b> &nbsp; Wall hits: <b>${player.hits}</b>`);
+        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b> &nbsp; Wall hits: <b>${player.hits}</b>${recordLine}`);
     }
   }
 
@@ -696,8 +752,9 @@
     hudDist.textContent = `${Math.floor(player.x / 20)} m`;
   }
 
-  // Initial pose
+  // Initial pose + HUD
   player.y = centerY(player.x);
+  refreshBestHud();
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
 </script>
