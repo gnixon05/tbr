@@ -6,86 +6,45 @@
 <title>Top Bot — 1 Level Remake</title>
 <style>
   html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: #0b1020;
-    color: #eaf2ff;
+    margin: 0; padding: 0; height: 100%;
+    background: #0b1020; color: #eaf2ff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
   }
-  #wrap {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
   canvas {
     background: linear-gradient(#1a2350 0%, #2b3a8a 60%, #4f6cc9 100%);
-    image-rendering: pixelated;
-    touch-action: none;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    max-width: 100vw;
-    max-height: 100vh;
+    image-rendering: pixelated; touch-action: none;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    max-width: 100vw; max-height: 100vh;
   }
   #hud {
-    position: fixed;
-    top: 10px;
-    left: 0;
-    right: 0;
-    pointer-events: none;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 16px;
-    font-weight: 700;
-    font-size: 16px;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    position: fixed; top: 10px; left: 0; right: 0; pointer-events: none;
+    display: flex; justify-content: space-between; padding: 0 16px;
+    font-weight: 700; font-size: 16px; text-shadow: 0 2px 6px rgba(0,0,0,0.6);
   }
   #hud .pill {
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 999px;
-    padding: 6px 12px;
-    pointer-events: auto;
+    background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 999px; padding: 6px 12px; pointer-events: auto;
   }
   #overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(8, 12, 30, 0.78);
-    backdrop-filter: blur(4px);
-    text-align: center;
-    padding: 24px;
-    z-index: 5;
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(8,12,30,0.78); backdrop-filter: blur(4px);
+    text-align: center; padding: 24px; z-index: 5;
   }
   #overlay h1 {
-    font-size: 40px;
-    margin: 0 0 8px;
-    letter-spacing: 1px;
+    font-size: 40px; margin: 0 0 8px; letter-spacing: 1px;
     background: linear-gradient(90deg, #ffd166, #ef476f, #06d6a0);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   #overlay p { max-width: 520px; line-height: 1.5; opacity: 0.9; }
   #overlay button {
     margin-top: 18px;
     background: linear-gradient(180deg, #ffd166, #f08a3e);
-    color: #1a1330;
-    border: 0;
-    padding: 14px 28px;
-    border-radius: 999px;
-    font-weight: 800;
-    font-size: 18px;
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(240, 138, 62, 0.45);
+    color: #1a1330; border: 0; padding: 14px 28px; border-radius: 999px;
+    font-weight: 800; font-size: 18px; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(240,138,62,0.45);
   }
   #overlay button:active { transform: translateY(1px); }
   #overlay.hidden { display: none; }
@@ -104,10 +63,10 @@
 <div id="overlay">
   <h1>TOP BOT</h1>
   <p>
-    Your bouncing robot rolls forward on its own. <b>Tap, click, or press
-    <span class="key">Space</span></b> to bounce higher. Hit <b style="color:#7CFC9A">green stripes</b> for a speed boost,
-    grab <b style="color:#FF5577">red gems</b> for extra zip, and dodge the
-    <b style="color:#FFC857">spike mines</b>. Reach the finish flag as fast as you can!
+    Fly through the passageway as fast as you can. <b>Hold tap / click /
+    <span class="key">Space</span></b> to thrust upward, release to fall.
+    Hit <b style="color:#7CFC9A">green strips</b> for a boost, grab
+    <b style="color:#FF5577">red gems</b> for extra zip. Reach the checkered flag!
   </p>
   <button id="startBtn">Start Level 1</button>
   <p style="opacity:.6;font-size:12px;margin-top:12px;">A 1-level remake inspired by Top Bot (2013).</p>
@@ -128,122 +87,84 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  // ---------- World / Level ----------
-  // The level is laid out along a single horizontal track. The "ground" is a
-  // piecewise polyline with hills so the bouncing reads as physical.
-  const LEVEL_LENGTH = 6400; // pixels of track
+  // ---------- Level: corridor ----------
+  const LEVEL_LENGTH = 6400;
   const FINISH_X = LEVEL_LENGTH - 120;
 
-  // Build a smooth-ish ground line as a series of points (x, y)
-  // y is measured from canvas top; lower number = higher in the world.
-  const groundPoints = [];
-  {
-    const baseY = H - 90;
-    let x = 0;
-    let y = baseY;
-    groundPoints.push({ x: 0, y });
-    while (x < LEVEL_LENGTH) {
-      const step = 60 + Math.random() * 50;
-      x += step;
-      // Gentle hills, with a few bigger swells.
-      const swell = Math.sin(x * 0.012) * 24 + Math.sin(x * 0.0035) * 60;
-      y = baseY + swell + (Math.random() - 0.5) * 10;
-      // Keep ground out of the lower bound and below the upper third.
-      y = Math.max(H * 0.55, Math.min(H - 40, y));
-      groundPoints.push({ x, y });
-    }
-    // Flatten near the finish so the landing is fair.
-    for (const p of groundPoints) {
-      if (p.x > FINISH_X - 280) p.y = baseY;
-    }
-    groundPoints.push({ x: LEVEL_LENGTH + 200, y: baseY });
+  // Corridor centerline and half-height as functions of worldX.
+  // Start and end are flatter/wider for fair launches and landings.
+  function easeEnds(x) {
+    const startEase = Math.min(1, x / 500);
+    const endEase = Math.min(1, (LEVEL_LENGTH - x) / 500);
+    return Math.min(startEase, endEase); // 0 at edges, 1 in the middle
   }
-
-  function groundYAt(worldX) {
-    // Binary search between groundPoints; linear interpolate between two.
-    let lo = 0, hi = groundPoints.length - 1;
-    if (worldX <= groundPoints[0].x) return groundPoints[0].y;
-    if (worldX >= groundPoints[hi].x) return groundPoints[hi].y;
-    while (hi - lo > 1) {
-      const mid = (lo + hi) >> 1;
-      if (groundPoints[mid].x <= worldX) lo = mid; else hi = mid;
-    }
-    const a = groundPoints[lo], b = groundPoints[hi];
-    const t = (worldX - a.x) / (b.x - a.x);
-    return a.y + (b.y - a.y) * t;
+  function centerY(x) {
+    const e = easeEnds(x);
+    return H * 0.5 + (Math.sin(x * 0.0032) * 80 + Math.sin(x * 0.0095) * 28) * e;
   }
+  function halfH(x) {
+    const e = easeEnds(x);
+    // 170px wide near edges, ~110px in the middle, with mild oscillation.
+    return 170 - 60 * e + Math.sin(x * 0.0061) * 14 * e;
+  }
+  function topY(x)    { return centerY(x) - halfH(x); }
+  function bottomY(x) { return centerY(x) + halfH(x); }
 
-  // Place pickups and hazards along the track.
-  // We avoid placing items in the first 200px (start) and last 200px (finish).
+  // ---------- Pickups & boosts ----------
   const gems = [];
   const stripes = [];
-  const mines = [];
 
   function rand(min, max) { return min + Math.random() * (max - min); }
 
-  // Gems: arc clusters at heights players reach by bouncing.
+  // Gem clusters: place inside the corridor, varying vertical position.
   for (let x = 320; x < FINISH_X - 200; x += rand(180, 320)) {
-    const clusterCount = 3 + (Math.random() < 0.4 ? 2 : 0);
-    const baseG = groundYAt(x) - rand(70, 160);
-    for (let i = 0; i < clusterCount; i++) {
+    const cy = centerY(x);
+    const hh = halfH(x);
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    const baseG = cy + sign * rand(0, hh - 28);
+    const count = 3 + (Math.random() < 0.4 ? 2 : 0);
+    for (let i = 0; i < count; i++) {
       const gx = x + i * 26;
-      // Slight arc shape over the cluster.
-      const t = (i - (clusterCount - 1) / 2) / clusterCount;
-      const gy = baseG - 20 * (1 - t * t * 4);
+      const gy = baseG + Math.sin(i * 0.6) * 6;
       gems.push({ x: gx, y: gy, r: 8, taken: false, spin: Math.random() * Math.PI });
     }
   }
 
-  // Speed stripes: bright green pads sitting on the ground.
-  for (let x = 480; x < FINISH_X - 300; x += rand(420, 720)) {
-    stripes.push({ x, w: 90, used: false });
-  }
-
-  // Mines: spike hazards on the ground; never inside a stripe and not too close to one.
-  function nearStripe(x) {
-    return stripes.some(s => Math.abs((s.x + s.w / 2) - x) < 120);
-  }
-  for (let x = 700; x < FINISH_X - 400; x += rand(360, 620)) {
-    if (nearStripe(x)) continue;
-    mines.push({ x, r: 14 });
+  // Speed stripes: vertical green ribbons spanning the corridor that boost on touch.
+  for (let x = 520; x < FINISH_X - 300; x += rand(520, 820)) {
+    stripes.push({ x, w: 22, used: false });
   }
 
   const totalGems = gems.length;
 
   // ---------- Player ----------
   const player = {
-    x: 80,
-    y: 0,
-    vx: 220,        // base forward speed (px/sec)
-    vy: 0,
-    r: 18,
-    onGround: false,
-    grounded: 0,    // frames since landing
-    boost: 0,       // boost timer (sec)
-    holding: false, // tap held (slightly higher bounces)
-    alive: true,
+    x: 80, y: 0,
+    vx: 280, vy: 0,
+    r: 16,
+    boost: 0,
+    holding: false,
     finished: false,
     gemsTaken: 0,
-    bounceCount: 0,
   };
 
   // Physics tuning
-  const GRAVITY = 1500;          // px/sec^2
-  const BASE_BOUNCE = 620;       // px/sec upward on every ground contact
-  const HOLD_BONUS = 280;        // extra upward if player holds at impact
-  const MIN_FORWARD = 220;
+  const GRAVITY = 1100;          // px/sec^2 (down)
+  const THRUST  = 2300;          // px/sec^2 (up, while holding)
+  const VY_MAX  = 700;
+  const MIN_FORWARD = 240;
   const MAX_FORWARD = 540;
-  const FORWARD_DECAY = 60;      // px/sec^2 toward MIN_FORWARD
   const BOOST_FORWARD = 460;
-  const STRIPE_BOOST = 1.4;      // sec
-  const GEM_BOOST = 0.45;        // sec
+  const FORWARD_DECAY = 50;
+  const STRIPE_BOOST = 1.4;
+  const GEM_BOOST = 0.45;
 
   // ---------- Input ----------
   function press()   { player.holding = true; }
   function release() { player.holding = false; }
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); press(); }
-    if (e.code === "Enter" && (player.finished || !player.alive)) restart();
+    if (e.code === "Enter" && player.finished) restart();
   });
   window.addEventListener("keyup", (e) => {
     if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); release(); }
@@ -254,13 +175,12 @@
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); press(); }, { passive: false });
   canvas.addEventListener("touchend",   (e) => { e.preventDefault(); release(); }, { passive: false });
 
-  // ---------- Game state ----------
+  // ---------- State ----------
   let running = false;
   let startTime = 0;
   let elapsed = 0;
   let camX = 0;
 
-  // Particle effects
   const particles = [];
   function spawnParticles(x, y, color, count, speed = 180) {
     for (let i = 0; i < count; i++) {
@@ -268,30 +188,24 @@
       const s = speed * (0.4 + Math.random() * 0.8);
       particles.push({
         x, y,
-        vx: Math.cos(a) * s,
-        vy: Math.sin(a) * s - 80,
-        life: 0.6 + Math.random() * 0.4,
-        age: 0,
-        color,
-        size: 2 + Math.random() * 2,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s - 80,
+        life: 0.5 + Math.random() * 0.4, age: 0,
+        color, size: 2 + Math.random() * 2,
       });
     }
   }
 
   function restart() {
-    // Reset items
     for (const g of gems) g.taken = false;
     for (const s of stripes) s.used = false;
     particles.length = 0;
     player.x = 80;
-    player.y = groundYAt(player.x) - player.r - 1;
+    player.y = centerY(player.x);
     player.vx = MIN_FORWARD;
-    player.vy = -BASE_BOUNCE * 0.6;
-    player.alive = true;
-    player.finished = false;
+    player.vy = 0;
     player.boost = 0;
+    player.finished = false;
     player.gemsTaken = 0;
-    player.bounceCount = 0;
     camX = 0;
     elapsed = 0;
     startTime = performance.now();
@@ -299,11 +213,11 @@
     overlay.classList.add("hidden");
   }
 
-  function endGame(winText, subText) {
+  function endGame(title, sub) {
     running = false;
     overlay.classList.remove("hidden");
-    overlay.querySelector("h1").textContent = winText;
-    overlay.querySelector("p").innerHTML = subText;
+    overlay.querySelector("h1").textContent = title;
+    overlay.querySelector("p").innerHTML = sub;
     startBtn.textContent = "Play again";
   }
 
@@ -323,7 +237,7 @@
   }
 
   function update(dt) {
-    // Forward speed: decays toward MIN_FORWARD, bumped by boosts.
+    // Forward speed
     if (player.boost > 0) {
       player.vx += (BOOST_FORWARD - player.vx) * Math.min(1, dt * 6);
       player.boost -= dt;
@@ -333,47 +247,41 @@
     }
     if (player.vx > MAX_FORWARD) player.vx = MAX_FORWARD;
 
-    // Apply gravity, integrate position
-    player.vy += GRAVITY * dt;
+    // Vertical: gravity + (optional) thrust
+    const a = GRAVITY + (player.holding ? -THRUST : 0);
+    player.vy += a * dt;
+    if (player.vy >  VY_MAX) player.vy =  VY_MAX;
+    if (player.vy < -VY_MAX) player.vy = -VY_MAX;
+
+    // Position
     player.x += player.vx * dt;
     player.y += player.vy * dt;
 
-    // Ground collision
-    const gy = groundYAt(player.x);
-    if (player.y + player.r > gy) {
-      player.y = gy - player.r;
-      // Bounce
-      let bounce = BASE_BOUNCE;
-      if (player.holding) bounce += HOLD_BONUS;
-      player.vy = -bounce;
-      player.bounceCount++;
-      spawnParticles(player.x, gy, "rgba(255,255,255,0.7)", 8, 140);
-      player.onGround = true;
-
-      // Stripe interaction (bounce on a stripe = full boost)
-      for (const s of stripes) {
-        if (!s.used && player.x > s.x && player.x < s.x + s.w) {
-          s.used = true;
-          player.boost = Math.max(player.boost, STRIPE_BOOST);
-          player.vx = BOOST_FORWARD;
-          spawnParticles(player.x, gy, "#7CFC9A", 22, 260);
-          break;
-        }
-      }
-
-      // Mine collision on ground (touching a mine ends the run)
-      for (const m of mines) {
-        if (Math.abs(m.x - player.x) < m.r + player.r * 0.7) {
-          player.alive = false;
-          spawnParticles(player.x, gy, "#FFC857", 30, 320);
-          break;
-        }
-      }
-    } else {
-      player.onGround = false;
+    // Corridor collision (clamp; no slowdown yet — that's chunk 2)
+    const top = topY(player.x);
+    const bot = bottomY(player.x);
+    if (player.y - player.r < top) {
+      player.y = top + player.r;
+      if (player.vy < 0) player.vy = 0;
+    }
+    if (player.y + player.r > bot) {
+      player.y = bot - player.r;
+      if (player.vy > 0) player.vy = 0;
     }
 
-    // Gem pickups (in-air or grazing)
+    // Stripe interaction (touch the green ribbon)
+    for (const s of stripes) {
+      if (s.used) continue;
+      if (player.x + player.r > s.x && player.x - player.r < s.x + s.w) {
+        s.used = true;
+        player.boost = Math.max(player.boost, STRIPE_BOOST);
+        player.vx = BOOST_FORWARD;
+        spawnParticles(player.x, player.y, "#7CFC9A", 22, 260);
+        break;
+      }
+    }
+
+    // Gem pickups
     for (const g of gems) {
       if (g.taken) continue;
       const dx = g.x - player.x;
@@ -386,7 +294,7 @@
       }
     }
 
-    // Camera follows the player horizontally with a lookahead
+    // Camera follow
     const targetCam = player.x - W * 0.32;
     camX += (targetCam - camX) * Math.min(1, dt * 6);
     if (camX < 0) camX = 0;
@@ -403,25 +311,18 @@
       if (particles[i].age >= particles[i].life) particles.splice(i, 1);
     }
 
-    // Lose if dead, or if the bot somehow falls off the bottom
-    if (!player.alive || player.y > H + 80) {
-      endGame("You crashed!", `You smashed into a mine after <b>${player.bounceCount}</b> bounces.<br/>Time: <b>${elapsed.toFixed(2)}s</b> &nbsp; Gems: <b>${player.gemsTaken} / ${totalGems}</b>`);
-      return;
-    }
-
-    // Win when crossing finish
+    // Win
     if (!player.finished && player.x >= FINISH_X) {
       player.finished = true;
-      const star = player.gemsTaken === totalGems ? " ★★★" : (player.gemsTaken > totalGems * 0.6 ? " ★★" : " ★");
+      const star = player.gemsTaken === totalGems ? " ★★★" :
+                   (player.gemsTaken > totalGems * 0.6 ? " ★★" : " ★");
       endGame("Level Cleared!" + star,
-        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b> &nbsp; Bounces: <b>${player.bounceCount}</b>`);
-      return;
+        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b>`);
     }
   }
 
   // ---------- Drawing ----------
   function drawParallax() {
-    // Far mountains
     ctx.fillStyle = "#1f2a5b";
     ctx.beginPath();
     ctx.moveTo(0, H);
@@ -435,7 +336,6 @@
     ctx.closePath();
     ctx.fill();
 
-    // Mid hills
     ctx.fillStyle = "#28367a";
     ctx.beginPath();
     ctx.moveTo(0, H);
@@ -449,7 +349,6 @@
     ctx.closePath();
     ctx.fill();
 
-    // Stars
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     for (let i = 0; i < 60; i++) {
       const sx = (i * 113 - camX * 0.05) % W;
@@ -459,35 +358,47 @@
     }
   }
 
-  function drawGround() {
-    // Ground as a filled polyline.
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    let started = false;
-    for (const p of groundPoints) {
-      const sx = p.x - camX;
-      if (sx < -10 || sx > W + 10) continue;
-      if (!started) { ctx.lineTo(sx - 30, p.y); started = true; }
-      ctx.lineTo(sx, p.y);
+  function drawCorridor() {
+    // Sample corridor along the visible window.
+    const samples = [];
+    const step = 12;
+    for (let sx = -step; sx <= W + step; sx += step) {
+      const wx = sx + camX;
+      samples.push({ sx, t: topY(wx), b: bottomY(wx) });
     }
-    ctx.lineTo(W + 30, H);
+
+    // Top wall (rock above topY)
+    ctx.beginPath();
+    ctx.moveTo(samples[0].sx, 0);
+    for (const s of samples) ctx.lineTo(s.sx, s.t);
+    ctx.lineTo(samples[samples.length - 1].sx, 0);
     ctx.closePath();
-    const grad = ctx.createLinearGradient(0, H * 0.5, 0, H);
-    grad.addColorStop(0, "#3b2a55");
-    grad.addColorStop(1, "#150b22");
-    ctx.fillStyle = grad;
+    const gTop = ctx.createLinearGradient(0, 0, 0, H * 0.6);
+    gTop.addColorStop(0, "#1a1330");
+    gTop.addColorStop(1, "#3b2a55");
+    ctx.fillStyle = gTop;
     ctx.fill();
 
-    // Top edge highlight
+    // Bottom wall (rock below bottomY)
     ctx.beginPath();
-    let first = true;
-    for (const p of groundPoints) {
-      const sx = p.x - camX;
-      if (sx < -10 || sx > W + 10) continue;
-      if (first) { ctx.moveTo(sx, p.y); first = false; } else ctx.lineTo(sx, p.y);
-    }
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.moveTo(samples[0].sx, H);
+    for (const s of samples) ctx.lineTo(s.sx, s.b);
+    ctx.lineTo(samples[samples.length - 1].sx, H);
+    ctx.closePath();
+    const gBot = ctx.createLinearGradient(0, H * 0.4, 0, H);
+    gBot.addColorStop(0, "#3b2a55");
+    gBot.addColorStop(1, "#150b22");
+    ctx.fillStyle = gBot;
+    ctx.fill();
+
+    // Inside edges
     ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.beginPath();
+    samples.forEach((s, i) => i ? ctx.lineTo(s.sx, s.t) : ctx.moveTo(s.sx, s.t));
+    ctx.stroke();
+    ctx.beginPath();
+    samples.forEach((s, i) => i ? ctx.lineTo(s.sx, s.b) : ctx.moveTo(s.sx, s.b));
     ctx.stroke();
   }
 
@@ -495,29 +406,27 @@
     for (const s of stripes) {
       const sx = s.x - camX;
       if (sx + s.w < -10 || sx > W + 10) continue;
-      const gy = groundYAt(s.x + s.w / 2);
-      ctx.save();
-      ctx.translate(sx, gy);
-      // Pad
-      const grad = ctx.createLinearGradient(0, -10, 0, 0);
+      const t = topY(s.x);
+      const b = bottomY(s.x);
+      const grad = ctx.createLinearGradient(sx, 0, sx + s.w, 0);
       grad.addColorStop(0, s.used ? "#3a6a3a" : "#9CFFB0");
       grad.addColorStop(1, s.used ? "#1d3a1d" : "#22C55E");
       ctx.fillStyle = grad;
-      ctx.fillRect(0, -10, s.w, 10);
-      // Chevrons
-      ctx.fillStyle = s.used ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.65)";
-      const t = performance.now() / 220;
-      for (let i = 0; i < 4; i++) {
-        const cx = ((i * 22 + t * 30) % s.w);
+      ctx.fillRect(sx, t, s.w, b - t);
+
+      // Chevrons inside the ribbon
+      ctx.fillStyle = s.used ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.7)";
+      const tt = performance.now() / 240;
+      for (let yy = t + 6; yy < b - 6; yy += 16) {
+        const off = ((tt * 30 + yy) % 16);
         ctx.beginPath();
-        ctx.moveTo(cx, -2);
-        ctx.lineTo(cx + 10, -8);
-        ctx.lineTo(cx + 6, -8);
-        ctx.lineTo(cx - 4, -2);
+        ctx.moveTo(sx + 4, yy + off);
+        ctx.lineTo(sx + s.w - 4, yy + off + 6);
+        ctx.lineTo(sx + s.w - 4, yy + off + 2);
+        ctx.lineTo(sx + 4, yy + off - 4);
         ctx.closePath();
         ctx.fill();
       }
-      ctx.restore();
     }
   }
 
@@ -532,65 +441,19 @@
       ctx.rotate(g.spin);
       const wob = Math.sin(performance.now() * 0.005 + g.x) * 2;
       ctx.translate(0, wob);
-      // Gem shape (diamond)
       ctx.beginPath();
-      ctx.moveTo(0, -10);
-      ctx.lineTo(8, 0);
-      ctx.lineTo(0, 10);
-      ctx.lineTo(-8, 0);
+      ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 10); ctx.lineTo(-8, 0);
       ctx.closePath();
       const gg = ctx.createLinearGradient(-8, -10, 8, 10);
-      gg.addColorStop(0, "#ffadc0");
-      gg.addColorStop(1, "#ff2e58");
+      gg.addColorStop(0, "#ffadc0"); gg.addColorStop(1, "#ff2e58");
       ctx.fillStyle = gg;
-      ctx.shadowColor = "#ff5577";
-      ctx.shadowBlur = 12;
+      ctx.shadowColor = "#ff5577"; ctx.shadowBlur = 12;
       ctx.fill();
       ctx.shadowBlur = 0;
-      // Highlight
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.beginPath();
-      ctx.moveTo(-2, -6);
-      ctx.lineTo(2, -6);
-      ctx.lineTo(0, -2);
+      ctx.moveTo(-2, -6); ctx.lineTo(2, -6); ctx.lineTo(0, -2);
       ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  function drawMines() {
-    for (const m of mines) {
-      const sx = m.x - camX;
-      if (sx < -30 || sx > W + 30) continue;
-      const gy = groundYAt(m.x);
-      ctx.save();
-      ctx.translate(sx, gy);
-      // Body
-      ctx.fillStyle = "#2b2b35";
-      ctx.beginPath();
-      ctx.arc(0, -8, 10, 0, Math.PI * 2);
-      ctx.fill();
-      // Spikes
-      ctx.fillStyle = "#FFC857";
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        const x1 = Math.cos(a) * 10;
-        const y1 = -8 + Math.sin(a) * 10;
-        const x2 = Math.cos(a) * 16;
-        const y2 = -8 + Math.sin(a) * 16;
-        ctx.beginPath();
-        ctx.moveTo(x1 - Math.sin(a) * 3, y1 + Math.cos(a) * 3);
-        ctx.lineTo(x2, y2);
-        ctx.lineTo(x1 + Math.sin(a) * 3, y1 - Math.cos(a) * 3);
-        ctx.closePath();
-        ctx.fill();
-      }
-      // Blink light
-      const blink = (Math.sin(performance.now() * 0.01 + m.x) + 1) * 0.5;
-      ctx.fillStyle = `rgba(255,${80 + 100 * blink},80,${0.5 + 0.5 * blink})`;
-      ctx.beginPath();
-      ctx.arc(0, -8, 3, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -599,22 +462,18 @@
   function drawFinish() {
     const sx = FINISH_X - camX;
     if (sx < -40 || sx > W + 40) return;
-    const gy = groundYAt(FINISH_X);
-    ctx.save();
-    ctx.translate(sx, gy);
-    // Pole
+    const t = topY(FINISH_X), b = bottomY(FINISH_X);
     ctx.fillStyle = "#cfd8ff";
-    ctx.fillRect(-2, -120, 4, 120);
-    // Flag (checkered)
+    ctx.fillRect(sx - 2, t, 4, b - t);
     const fw = 56, fh = 36;
+    const fy = t + 4;
     for (let yy = 0; yy < fh; yy += 9) {
       for (let xx = 0; xx < fw; xx += 9) {
         const odd = (((xx / 9) | 0) + ((yy / 9) | 0)) & 1;
         ctx.fillStyle = odd ? "#ffffff" : "#1a1330";
-        ctx.fillRect(2 + xx, -120 + yy, 9, 9);
+        ctx.fillRect(sx + 2 + xx, fy + yy, 9, 9);
       }
     }
-    ctx.restore();
   }
 
   function drawPlayer() {
@@ -622,22 +481,22 @@
     const sy = player.y;
     ctx.save();
     ctx.translate(sx, sy);
-    // Squash/stretch by vertical velocity
-    const sxScale = 1 + Math.abs(player.vy) / 4000;
-    const syScale = 1 - Math.abs(player.vy) / 4000;
-    const tilt = Math.atan2(player.vy, player.vx) * 0.4;
+    const tilt = Math.atan2(player.vy, Math.max(60, player.vx)) * 0.45;
     ctx.rotate(tilt);
-    ctx.scale(sxScale, syScale);
 
-    // Boost trail
     if (player.boost > 0) {
-      ctx.fillStyle = "rgba(255, 200, 80, 0.5)";
+      ctx.fillStyle = "rgba(255,200,80,0.5)";
       ctx.beginPath();
       ctx.ellipse(-player.r - 8, 0, 18, 6, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+    if (player.holding) {
+      ctx.fillStyle = "rgba(180,220,255,0.6)";
+      ctx.beginPath();
+      ctx.ellipse(0, player.r + 6, 6, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // Body
     const bodyGrad = ctx.createLinearGradient(0, -player.r, 0, player.r);
     bodyGrad.addColorStop(0, "#bfd8ff");
     bodyGrad.addColorStop(1, "#5a78c9");
@@ -645,30 +504,18 @@
     ctx.beginPath();
     ctx.arc(0, 0, player.r, 0, Math.PI * 2);
     ctx.fill();
-    // Visor
     ctx.fillStyle = "#0e1a40";
     ctx.fillRect(-10, -6, 20, 8);
-    // Eye
     ctx.fillStyle = player.boost > 0 ? "#ffd166" : "#7CFC9A";
     ctx.fillRect(-2, -4, 4, 4);
-    // Antenna
-    ctx.strokeStyle = "#cfd8ff";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#cfd8ff"; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, -player.r);
-    ctx.lineTo(0, -player.r - 8);
+    ctx.moveTo(0, -player.r); ctx.lineTo(0, -player.r - 8);
     ctx.stroke();
     ctx.fillStyle = "#ff5577";
     ctx.beginPath();
     ctx.arc(0, -player.r - 10, 3, 0, Math.PI * 2);
     ctx.fill();
-    // Side bolts
-    ctx.fillStyle = "#0e1a40";
-    ctx.beginPath();
-    ctx.arc(-player.r * 0.7, 6, 2, 0, Math.PI * 2);
-    ctx.arc(player.r * 0.7, 6, 2, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
   }
 
@@ -690,10 +537,8 @@
     ctx.fillRect(barX, barY, barW, barH);
     ctx.fillStyle = "#7CFC9A";
     ctx.fillRect(barX, barY, barW * pct, barH);
-    // Bot marker
     ctx.fillStyle = "#ffd166";
     ctx.fillRect(barX + barW * pct - 2, barY - 2, 4, barH + 4);
-    // Finish marker
     ctx.fillStyle = "#fff";
     ctx.fillRect(barX + barW - 2, barY - 4, 2, barH + 8);
   }
@@ -701,23 +546,21 @@
   function draw() {
     ctx.clearRect(0, 0, W, H);
     drawParallax();
-    drawGround();
+    drawCorridor();
     drawStripes();
-    drawMines();
     drawGems();
     drawFinish();
     drawParticles();
     drawPlayer();
     drawProgressBar();
 
-    // HUD updates
     hudTime.textContent = elapsed.toFixed(2) + "s";
     hudGems.textContent = `Gems ${player.gemsTaken} / ${totalGems}`;
     hudDist.textContent = `${Math.floor(player.x / 20)} m`;
   }
 
-  // Initialize player position visually before first start
-  player.y = groundYAt(player.x) - player.r - 1;
+  // Initial pose
+  player.y = centerY(player.x);
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
 </script>
