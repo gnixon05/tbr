@@ -146,7 +146,12 @@
     holding: false,
     finished: false,
     gemsTaken: 0,
+    invuln: 0,    // seconds remaining of post-hit grace
+    hitFlash: 0,  // seconds remaining of red flash on the bot
+    hits: 0,
   };
+
+  let shake = 0; // camera shake intensity (px), decays each frame
 
   // Physics tuning
   const GRAVITY = 1100;          // px/sec^2 (down)
@@ -158,6 +163,12 @@
   const FORWARD_DECAY = 50;
   const STRIPE_BOOST = 1.4;
   const GEM_BOOST = 0.45;
+  // Wall hit response
+  const HIT_SLOW_MULT = 0.55;   // multiplies vx on impact
+  const HIT_SLOW_FLOOR = 150;   // vx never drops below this from a hit
+  const HIT_INVULN = 0.35;      // seconds of grace after a hit
+  const HIT_FLASH = 0.25;       // seconds of red flash on the bot
+  const HIT_SHAKE = 7;          // px of camera shake on impact
 
   // ---------- Input ----------
   function press()   { player.holding = true; }
@@ -206,6 +217,10 @@
     player.boost = 0;
     player.finished = false;
     player.gemsTaken = 0;
+    player.invuln = 0;
+    player.hitFlash = 0;
+    player.hits = 0;
+    shake = 0;
     camX = 0;
     elapsed = 0;
     startTime = performance.now();
@@ -257,17 +272,34 @@
     player.x += player.vx * dt;
     player.y += player.vy * dt;
 
-    // Corridor collision (clamp; no slowdown yet — that's chunk 2)
+    // Corridor collision: clamp position; slow down on impact (with invuln window).
     const top = topY(player.x);
     const bot = bottomY(player.x);
+    let hitWall = null;
     if (player.y - player.r < top) {
       player.y = top + player.r;
       if (player.vy < 0) player.vy = 0;
-    }
-    if (player.y + player.r > bot) {
+      hitWall = "top";
+    } else if (player.y + player.r > bot) {
       player.y = bot - player.r;
       if (player.vy > 0) player.vy = 0;
+      hitWall = "bot";
     }
+    if (hitWall && player.invuln <= 0) {
+      player.vx = Math.max(HIT_SLOW_FLOOR, player.vx * HIT_SLOW_MULT);
+      player.boost = 0;
+      player.invuln = HIT_INVULN;
+      player.hitFlash = HIT_FLASH;
+      player.hits++;
+      shake = HIT_SHAKE;
+      const sparkY = hitWall === "top" ? top : bot;
+      spawnParticles(player.x, sparkY, "#ffd166", 14, 220);
+    }
+
+    // Decay timers
+    if (player.invuln  > 0) player.invuln  -= dt;
+    if (player.hitFlash > 0) player.hitFlash -= dt;
+    if (shake > 0) shake = Math.max(0, shake - 30 * dt);
 
     // Stripe interaction (touch the green ribbon)
     for (const s of stripes) {
@@ -294,7 +326,7 @@
       }
     }
 
-    // Camera follow
+    // Camera follow (with hit shake offset applied at draw time)
     const targetCam = player.x - W * 0.32;
     camX += (targetCam - camX) * Math.min(1, dt * 6);
     if (camX < 0) camX = 0;
@@ -317,7 +349,7 @@
       const star = player.gemsTaken === totalGems ? " ★★★" :
                    (player.gemsTaken > totalGems * 0.6 ? " ★★" : " ★");
       endGame("Level Cleared!" + star,
-        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b>`);
+        `Time: <b>${elapsed.toFixed(2)}s</b><br/>Gems: <b>${player.gemsTaken} / ${totalGems}</b> &nbsp; Wall hits: <b>${player.hits}</b>`);
     }
   }
 
@@ -497,13 +529,27 @@
       ctx.fill();
     }
 
+    const flash = Math.max(0, player.hitFlash) / HIT_FLASH;
     const bodyGrad = ctx.createLinearGradient(0, -player.r, 0, player.r);
-    bodyGrad.addColorStop(0, "#bfd8ff");
-    bodyGrad.addColorStop(1, "#5a78c9");
+    if (flash > 0) {
+      bodyGrad.addColorStop(0, "#ffd1d6");
+      bodyGrad.addColorStop(1, "#c0383f");
+    } else {
+      bodyGrad.addColorStop(0, "#bfd8ff");
+      bodyGrad.addColorStop(1, "#5a78c9");
+    }
     ctx.fillStyle = bodyGrad;
     ctx.beginPath();
     ctx.arc(0, 0, player.r, 0, Math.PI * 2);
     ctx.fill();
+    if (player.invuln > 0) {
+      // faint shield ring during invuln
+      ctx.strokeStyle = `rgba(255,209,102,${0.3 + 0.3 * Math.sin(performance.now() * 0.04)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, player.r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.fillStyle = "#0e1a40";
     ctx.fillRect(-10, -6, 20, 8);
     ctx.fillStyle = player.boost > 0 ? "#ffd166" : "#7CFC9A";
@@ -545,6 +591,10 @@
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shake > 0) {
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    }
     drawParallax();
     drawCorridor();
     drawStripes();
@@ -552,6 +602,7 @@
     drawFinish();
     drawParticles();
     drawPlayer();
+    ctx.restore();
     drawProgressBar();
 
     hudTime.textContent = elapsed.toFixed(2) + "s";
