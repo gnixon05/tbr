@@ -90,6 +90,10 @@
   const hudDist = document.getElementById("hudDist");
   const resetBestLink = document.getElementById("resetBestLink");
 
+  // Level seed is referenced by the best-time storage key below, so it must
+  // be initialized before the BEST_KEY const is evaluated.
+  const LEVEL_SEED = 0xC0FFEE;
+
   // ---------- Best time (localStorage) ----------
   // Key includes the level seed so changing the layout invalidates old times.
   const BEST_KEY = `topbot.best.v2.${LEVEL_SEED}`;
@@ -130,7 +134,6 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  const LEVEL_SEED = 0xC0FFEE;
   const lr = makeRng(LEVEL_SEED);
 
   // ---------- Level: corridor ----------
